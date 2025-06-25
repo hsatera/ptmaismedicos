@@ -1,114 +1,111 @@
-import streamlit as st
 import pandas as pd
-import tempfile
-import os
+import streamlit as st
+from io import StringIO
 
-st.set_page_config(page_title="Relatório de Supervisores", layout="wide")
+# Função para ler o arquivo Excel (.xls ou .xlsx)
+def read_excel_file(uploaded_file):
+    try:
+        # Tenta ler o arquivo, pulando as 5 primeiras linhas (0 a 4)
+        df = pd.read_excel(uploaded_file, skiprows=5, engine=None)
+        return df
+    except Exception as e:
+        st.error(f"Erro ao ler o arquivo: {e}")
+        return None
 
-st.title("📊 Relatório de Supervisores e Tutores")
 
-uploaded_file = st.sidebar.file_uploader("Faça upload do arquivo XLS ou XLSX", type=["xls", "xlsx"])
+# ---- Interface Streamlit ----
+st.title("Análise de Supervisão Médica")
 
-def processar_dataframe(df):
-    # Adjust columns to UTF-8 (if necessary)
-    # Using errors='ignore' to prevent UnicodeDecodeError for non-string columns or those that can't be decoded
-    df.columns = [str(col).encode('latin1').decode('utf-8', errors='ignore') if isinstance(col, str) else col for col in df.columns]
-
-    # Select important columns
-    # Ensure these columns exist before attempting to select them
-    required_columns = ['Município', 'Supervisor', 'Tutor']
-    for col in required_columns:
-        if col not in df.columns:
-            st.warning(f"A coluna '{col}' não foi encontrada no arquivo. Por favor, verifique se o cabeçalho está correto.")
-            return pd.DataFrame() # Return empty DataFrame if critical columns are missing
-
-    df = df[required_columns]
-
-    # Fill NaN with empty string
-    df['Supervisor'] = df['Supervisor'].fillna('')
-    df['Tutor'] = df['Tutor'].fillna('')
-
-    # Remove rows with empty supervisor or tutor
-    df = df[(df['Supervisor'] != '') & (df['Tutor'] != '')]
-
-    return df
+uploaded_file = st.file_uploader("Carregar arquivo XLS ou XLSX", type=["xls", "xlsx"])
 
 if uploaded_file is not None:
-    try:
-        file_ext = uploaded_file.name.split('.')[-1].lower()
-        df = None # Initialize df
+    # Ler o arquivo
+    df = read_excel_file(uploaded_file)
 
-        if file_ext == 'xls':
-            # Use xlrd for older .xls files
-            try:
-                df = pd.read_excel(uploaded_file, skiprows=5, engine='xlrd')
-            except Exception as e:
-                st.error(f"Erro ao ler o arquivo XLS com xlrd: {e}. O arquivo pode estar corrompido ou em um formato não suportado por xlrd.")
-                st.stop()
-        elif file_ext == 'xlsx':
-            # Use openpyxl for .xlsx files
-            try:
-                df = pd.read_excel(uploaded_file, skiprows=5, engine='openpyxl')
-            except Exception as e:
-                st.error(f"Erro ao ler o arquivo XLSX com openpyxl: {e}. O arquivo pode estar corrompido.")
-                st.stop()
-        else:
-            st.error("Formato não suportado. Por favor, envie um arquivo .xls ou .xlsx.")
-            st.stop()
+    if df is not None:
+        st.subheader("Pré-visualização dos Dados")
+        st.dataframe(df.head())
 
-        if df is not None and not df.empty:
-            # Process dataframe for cleaning and filtering
-            df = processar_dataframe(df)
+        try:
+            # Seleciona colunas de interesse
+            df = df[['Município', 'Supervisor', 'Tutor']]
 
-            if not df.empty:
-                # Show loaded data
-                st.subheader("🔍 Dados Carregados")
-                st.dataframe(df)
+            # Limpa dados vazios
+            df['Supervisor'] = df['Supervisor'].fillna('')
+            df['Tutor'] = df['Tutor'].fillna('')
+            df = df[(df['Supervisor'] != '') & (df['Tutor'] != '')]
 
-                # Number of supervisors per tutor
-                st.subheader("👩‍🏫 Número de Supervisores por Tutor")
-                supervisores_por_tutor = df.groupby('Tutor')['Supervisor'].nunique()
-                st.dataframe(supervisores_por_tutor.reset_index().rename(columns={'Supervisor': 'Nº de Supervisores'}))
+            # 1) Número de supervisores únicos por tutor
+            supervisores_por_tutor = df.groupby('Tutor')['Supervisor'].nunique()
 
-                # Number of supervised doctors per supervisor
-                st.subheader("👨‍⚕️ Número de Médicos supervisionados por Supervisor")
-                medicos_por_supervisor = df.groupby('Supervisor').size()
-                st.dataframe(medicos_por_supervisor.reset_index().rename(columns={0: 'Nº de Médicos'}))
+            # 2) Número de médicos supervisionados por supervisor
+            medicos_por_supervisor = df.groupby('Supervisor').size()
 
-                # Supervisors with less than 8 or more than 10 doctors
-                st.subheader("⚠️ Supervisores com menos de 8 ou mais de 10 médicos")
-                supervisores_extremos = medicos_por_supervisor[(medicos_por_supervisor < 8) | (medicos_por_supervisor > 10)]
-                st.dataframe(supervisores_extremos.reset_index().rename(columns={0: 'Nº de Médicos'}))
+            # 3) Supervisores com menos de 8 ou mais de 10 médicos
+            supervisores_menos_de_8_ou_mais_de_10 = medicos_por_supervisor[
+                (medicos_por_supervisor < 8) | (medicos_por_supervisor > 10)
+            ]
 
-                # Supervisors with more than 2 municipalities
-                st.subheader("🌎 Supervisores com mais de 2 municípios")
-                supervisores_municipios = df.groupby('Supervisor')['Município'].nunique()
-                supervisores_multi = supervisores_municipios[supervisores_municipios > 2]
-                st.dataframe(supervisores_multi.reset_index().rename(columns={'Município': 'Nº de Municípios'}))
+            # 4) Supervisores que atuam em mais de 2 municípios
+            supervisores_mais_de_2_municipios = df.groupby('Supervisor')['Município'].nunique()
+            supervisores_mais_de_2_municipios = supervisores_mais_de_2_municipios[
+                supervisores_mais_de_2_municipios > 2
+            ]
 
-                # Average doctors per supervisor
-                st.subheader("📈 Média de médicos por supervisor")
-                total_medicos = df['Supervisor'].count()
-                total_supervisores = df['Supervisor'].nunique()
-                if total_supervisores > 0:
-                    media_medicos = total_medicos / total_supervisores
-                    st.metric("Média de médicos por supervisor", f"{media_medicos:.2f}")
-                else:
-                    st.info("Não há supervisores para calcular a média.")
+            # 5) Média de médicos por supervisor
+            total_medicos = df['Supervisor'].count()
+            total_supervisores = df['Supervisor'].nunique()
+            media_medicos_por_supervisor = total_medicos / total_supervisores
 
-                # Detailed report by municipality
-                st.subheader("🗺️ Relatório Detalhado por Município")
-                for municipio, grupo in df.groupby('Município'):
-                    supervisores = '; '.join(sorted(grupo['Supervisor'].unique()))
-                    tutores = '; '.join(sorted(grupo['Tutor'].unique()))
-                    relatorio = f"**{municipio}**\n- Supervisores: {supervisores}\n- Tutores: {tutores}"
-                    st.markdown(relatorio)
-                    st.markdown("---")
-            else:
-                st.warning("O DataFrame resultante após o processamento está vazio. Verifique os dados no arquivo.")
+            # 6) Relatório detalhado por município
+            relatorio_municipios = []
+            for municipio, grupo in df.groupby('Município'):
+                supervisores = '; '.join(grupo['Supervisor'].unique())
+                tutores = '; '.join(grupo['Tutor'].unique())
+                relatorio = f"{municipio}. Supervisores: {supervisores}. Tutores: {tutores}."
+                relatorio_municipios.append(relatorio)
+            relatorio_municipios_txt = "\n".join(relatorio_municipios)
 
-    except Exception as e:
-        st.error(f"Erro inesperado ao processar o arquivo: {e}")
+            # ---- Exibir resultados ----
+            st.subheader("Número de supervisores por tutor:")
+            st.write(supervisores_por_tutor)
 
-else:
-    st.info("Por favor, faça upload do arquivo XLS ou XLSX para gerar o relatório.")
+            st.subheader("Número de médicos supervisionados por supervisor:")
+            st.write(medicos_por_supervisor)
+
+            st.subheader("Supervisores com menos de 8 ou mais de 10 médicos:")
+            st.write(supervisores_menos_de_8_ou_mais_de_10)
+
+            st.subheader("Supervisores com mais de 2 municípios:")
+            st.write(supervisores_mais_de_2_municipios)
+
+            st.subheader("Média de médicos por supervisor:")
+            st.write(f"{media_medicos_por_supervisor:.2f}")
+
+            st.subheader("Relatório Detalhado por Município:")
+            st.text(relatorio_municipios_txt)
+
+            # ---- Gerar arquivo para download ----
+            output = StringIO()
+            output.write("Número de supervisores por tutor:\n")
+            output.write(supervisores_por_tutor.to_string())
+            output.write("\n\nNúmero de médicos supervisionados por supervisor:\n")
+            output.write(medicos_por_supervisor.to_string())
+            output.write("\n\nSupervisores com menos de 8 ou mais de 10 médicos:\n")
+            output.write(supervisores_menos_de_8_ou_mais_de_10.to_string())
+            output.write("\n\nSupervisores com mais de 2 municípios:\n")
+            output.write(supervisores_mais_de_2_municipios.to_string())
+            output.write("\n\nMédia de médicos por supervisor:\n")
+            output.write(f"{media_medicos_por_supervisor:.2f}\n")
+            output.write("\n\nRelatório Detalhado por Município:\n")
+            output.write(relatorio_municipios_txt)
+
+            st.download_button(
+                label="Baixar relatório completo",
+                data=output.getvalue(),
+                file_name="relatorio_supervisao.txt",
+                mime="text/plain"
+            )
+
+        except Exception as e:
+            st.error(f"Ocorreu um erro no processamento dos dados: {e}")
