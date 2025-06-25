@@ -14,7 +14,7 @@ def read_excel_file(uploaded_file):
 
 
 # ---- Interface Streamlit ----
-st.title("Análise de Supervisão Médica")
+st.title("Análise de Plano de Trabalho")
 
 uploaded_file = st.file_uploader("Carregar arquivo XLS ou XLSX", type=["xls", "xlsx"])
 
