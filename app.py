@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 
@@ -6,28 +7,28 @@ st.set_page_config(page_title="Relatório de Supervisores", layout="wide")
 st.title("📊 Relatório de Supervisores e Tutores")
 
 st.sidebar.header("⚙️ Upload de Arquivo")
-uploaded_file = st.sidebar.file_uploader("Faça upload do arquivo XLS", type=["xls", "xlsx"])
+uploaded_file = st.sidebar.file_uploader("Faça upload do arquivo XLS ou XLSX", type=["xls", "xlsx"])
 
 if uploaded_file is not None:
     try:
-        # Ler o arquivo XLS (planilha antiga)
-        df = pd.read_excel(uploaded_file, skiprows=5)
+        file_extension = uploaded_file.name.split('.')[-1].lower()
+        if file_extension == 'xls':
+            df = pd.read_excel(uploaded_file, skiprows=5, engine='xlrd')
+        elif file_extension == 'xlsx':
+            df = pd.read_excel(uploaded_file, skiprows=5)
+        else:
+            st.error("Formato não suportado. Por favor, envie um arquivo .xls ou .xlsx.")
+            st.stop()
 
-        # Corrigir encoding se necessário
         df.columns = [str(col).encode('latin1').decode('utf-8') if isinstance(col, str) else col for col in df.columns]
-
-        # Filtrar as colunas importantes
         df = df[['Município', 'Supervisor', 'Tutor']]
 
-        # Limpar dados nulos
         df['Supervisor'] = df['Supervisor'].fillna('')
         df['Tutor'] = df['Tutor'].fillna('')
         df = df[(df['Supervisor'] != '') & (df['Tutor'] != '')]
 
         st.subheader("🔍 Dados Carregados")
         st.dataframe(df)
-
-        # -------- Análises ---------
 
         st.subheader("👩‍🏫 Número de Supervisores por Tutor")
         supervisores_por_tutor = df.groupby('Tutor')['Supervisor'].nunique()
@@ -69,4 +70,4 @@ if uploaded_file is not None:
         st.error(f"Erro ao processar o arquivo: {e}")
 
 else:
-    st.info("Por favor, faça upload do arquivo XLS para gerar o relatório.")
+    st.info("Por favor, faça upload do arquivo XLS ou XLSX para gerar o relatório.")
