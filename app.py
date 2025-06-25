@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
 from io import StringIO
+import altair as alt # Importação da biblioteca Altair para gráficos mais avançados
 
 # Função para ler o arquivo Excel (.xls ou .xlsx)
 # Tenta ler o arquivo, pulando as 5 primeiras linhas (índices 0 a 4)
@@ -35,7 +36,6 @@ if uploaded_file is not None:
 
         try:
             # Seleciona as colunas de interesse, incluindo 'Nome Região' e 'Início Atividades'
-            # ALTERADO: A coluna 'Data de Referência' foi substituída por 'Início Atividades'
             required_columns = ['Município', 'Supervisor', 'Tutor', 'Nome Região', 'Início Atividades']
             if not all(col in df.columns for col in required_columns):
                 missing_cols = [col for col in required_columns if col not in df.columns]
@@ -54,7 +54,6 @@ if uploaded_file is not None:
             df = df[(df['Supervisor'] != '') & (df['Tutor'] != '')]
 
             # Converte a coluna de data para o tipo datetime, tratando erros
-            # A função pd.to_datetime é robusta para formatar DD/MM/YYYY
             df['Início Atividades'] = pd.to_datetime(df['Início Atividades'], errors='coerce', dayfirst=True)
             # Remove linhas onde a conversão de data falhou (NaN)
             df.dropna(subset=['Início Atividades'], inplace=True)
@@ -103,7 +102,7 @@ if uploaded_file is not None:
 
             # Combina os dados para o gráfico cumulativo
             df_cumulativo_chart = pd.DataFrame({
-                'Médicos por Mês': medicos_por_mes_ano,
+                'Médicos por Mês': medicos_por_mes_ano, # Mantido para referência, mas não será plotado diretamente
                 'Médicos Cumulativos': medicos_cumulativos,
                 'Percentual Cumulativo (%)': porcentagem_cumulativa
             }).fillna(0) # Preenche NaNs com 0 caso haja meses sem dados
@@ -126,10 +125,34 @@ if uploaded_file is not None:
             st.write("### Média de médicos por supervisor:")
             st.write(f"**{media_medicos_por_supervisor:.2f}** médicos por supervisor")
 
-            # ---- Gráfico de Quantidade de Médicos por Mês e Ano (Cumulativo) ----
+            # ---- Gráfico de Quantidade de Médicos por Mês e Ano (Cumulativo em Barras com Porcentagem) ----
             st.subheader("Quantidade de Médicos por Mês e Ano (Cumulativo)")
             if not df_cumulativo_chart.empty:
-                st.line_chart(df_cumulativo_chart)
+                # Criar um DataFrame para o Altair que inclui o índice 'Ano_Mes'
+                df_chart_reset = df_cumulativo_chart.reset_index()
+
+                # Criar o gráfico de barras para Médicos Cumulativos
+                bar_chart = alt.Chart(df_chart_reset).mark_bar().encode(
+                    x=alt.X('Ano_Mes', sort=None, title='Mês/Ano de Início das Atividades'),
+                    y=alt.Y('Médicos Cumulativos', title='Médicos Cumulativos', axis=alt.Axis(titleColor='#5276A7')),
+                    tooltip=['Ano_Mes', 'Médicos Cumulativos']
+                )
+
+                # Criar o gráfico de linha para Percentual Cumulativo (%)
+                line_chart = alt.Chart(df_chart_reset).mark_line(color='red').encode(
+                    x=alt.X('Ano_Mes', sort=None), # Compartilha o eixo X
+                    y=alt.Y('Percentual Cumulativo (%)', title='Percentual Cumulativo (%)', axis=alt.Axis(titleColor='red')),
+                    tooltip=['Ano_Mes', alt.Tooltip('Percentual Cumulativo (%)', format='.2f') + '%']
+                )
+
+                # Combinar os gráficos e configurar eixos Y independentes
+                chart = alt.layer(bar_chart, line_chart).resolve_scale(
+                    y='independent' # Permite que cada gráfico tenha seu próprio eixo Y
+                ).properties(
+                    title='Médicos Cumulativos por Mês de Chegada e Percentual de Crescimento'
+                ).interactive() # Ativa zoom e pan
+
+                st.altair_chart(chart, use_container_width=True)
                 st.dataframe(df_cumulativo_chart, use_container_width=True)
             else:
                 st.info("Não há dados de data válidos para gerar o gráfico cumulativo de médicos por mês e ano. Verifique a coluna 'Início Atividades'.")
