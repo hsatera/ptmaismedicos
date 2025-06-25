@@ -12,11 +12,17 @@ def read_excel_file(uploaded_file):
         st.error(f"Erro ao ler o arquivo: {e}")
         return None
 
+# Função para converter nomes para o formato Title Case (Primeira Letra Maiúscula)
+def to_title_case(name):
+    if pd.isna(name):
+        return ''
+    return str(name).title()
+
 # ---- Interface Streamlit ----
 st.set_page_config(layout="wide") # Define o layout da página para largura total
 st.title("Análise de Plano de Trabalho")
 
-uploaded_file = st.file_uploader("Carregar arquivo XLS ou XLSX", type=["xlsx"])
+uploaded_file = st.file_uploader("Carregar arquivo XLSX", type=["xlsx"])
 
 if uploaded_file is not None:
     # Ler o arquivo
@@ -36,6 +42,10 @@ if uploaded_file is not None:
                 raise KeyError(f"Colunas ausentes no arquivo: {', '.join(missing_cols)}. Verifique se o arquivo possui as colunas esperadas.")
 
             df = df[required_columns]
+
+            # Aplica a correção de capitalização aos nomes dos tutores e supervisores
+            df['Supervisor'] = df['Supervisor'].apply(to_title_case)
+            df['Tutor'] = df['Tutor'].apply(to_title_case)
 
             # Limpa dados vazios nas colunas 'Supervisor' e 'Tutor'
             df['Supervisor'] = df['Supervisor'].fillna('')
