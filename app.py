@@ -173,6 +173,50 @@ if uploaded_file is not None:
             else:
                 st.info("Não há dados de data válidos para gerar o gráfico cumulativo de médicos por mês e ano. Verifique a coluna 'Início Atividades'.")
 
+            # --- Gráfico de Barras Empilhadas de Médicos por Município com Linha Cumulativa ---
+            st.subheader("Número de Médicos por Município (Maiores para Menores) com Linha Cumulativa")
+            
+            # Contar médicos por município e ordenar
+            medicos_por_municipio = df.groupby('Município').size().sort_values(ascending=False)
+            
+            # Calcular o número cumulativo de médicos
+            medicos_cumulativos_municipio = medicos_por_municipio.cumsum()
+            
+            # Criar um DataFrame para o Altair
+            df_municipio_chart = pd.DataFrame({
+                'Município': medicos_por_municipio.index,
+                'Número de Médicos': medicos_por_municipio.values,
+                'Médicos Cumulativos': medicos_cumulativos_municipio.values
+            })
+
+            if not df_municipio_chart.empty:
+                # Criar o gráfico de barras
+                bar_chart_municipio = alt.Chart(df_municipio_chart).mark_bar().encode(
+                    x=alt.X('Município', sort='-y', title='Município'), # Ordenar pelo número de médicos
+                    y=alt.Y('Número de Médicos', title='Número de Médicos', axis=alt.Axis(titleColor='#5276A7')),
+                    tooltip=['Município', 'Número de Médicos']
+                )
+
+                # Criar o gráfico de linha cumulativa
+                line_chart_municipio = alt.Chart(df_municipio_chart).mark_line(color='red').encode(
+                    x=alt.X('Município', sort='-y'), # Compartilhar o eixo X
+                    y=alt.Y('Médicos Cumulativos', title='Médicos Cumulativos', axis=alt.Axis(titleColor='red')),
+                    tooltip=['Município', 'Médicos Cumulativos']
+                )
+
+                # Combinar os gráficos e configurar eixos Y independentes
+                chart_municipio = alt.layer(bar_chart_municipio, line_chart_municipio).resolve_scale(
+                    y='independent'
+                ).properties(
+                    title='Distribuição e Acúmulo de Médicos por Município'
+                ).interactive()
+
+                st.altair_chart(chart_municipio, use_container_width=True)
+                st.dataframe(df_municipio_chart, use_container_width=True)
+            else:
+                st.info("Não há dados de município válidos para gerar o gráfico de médicos por município. Verifique a coluna 'Município'.")
+
+
             # --- Relatório Detalhado por Região e Município ---
             st.subheader("Relatório Detalhado por Região e Município")
 
@@ -227,3 +271,4 @@ if uploaded_file is not None:
             st.error(f"Erro: Coluna '{ke}' não encontrada no arquivo. Verifique se o arquivo possui as colunas esperadas: 'Município', 'Supervisor', 'Tutor', 'Nome Região', 'Início Atividades'.")
         except Exception as e:
             st.error(f"Ocorreu um erro inesperado no processamento dos dados: {e}")
+
