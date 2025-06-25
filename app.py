@@ -94,6 +94,20 @@ if uploaded_file is not None:
             # 6) Quantidade de médicos por mês e ano (usando 'Início Atividades')
             medicos_por_mes_ano = df.groupby('Ano_Mes').size().sort_index()
 
+            # Calcula a quantidade cumulativa de médicos por mês e ano
+            medicos_cumulativos = medicos_por_mes_ano.cumsum()
+
+            # Calcula a porcentagem cumulativa de médicos
+            total_medicos_geral = medicos_cumulativos.iloc[-1] if not medicos_cumulativos.empty else 1
+            porcentagem_cumulativa = (medicos_cumulativos / total_medicos_geral) * 100
+
+            # Combina os dados para o gráfico cumulativo
+            df_cumulativo_chart = pd.DataFrame({
+                'Médicos por Mês': medicos_por_mes_ano,
+                'Médicos Cumulativos': medicos_cumulativos,
+                'Percentual Cumulativo (%)': porcentagem_cumulativa
+            }).fillna(0) # Preenche NaNs com 0 caso haja meses sem dados
+
             # ---- Exibir resultados da Análise Geral ----
             st.subheader("Análise Geral")
 
@@ -112,13 +126,13 @@ if uploaded_file is not None:
             st.write("### Média de médicos por supervisor:")
             st.write(f"**{media_medicos_por_supervisor:.2f}** médicos por supervisor")
 
-            # ---- Gráfico de Quantidade de Médicos por Mês e Ano ----
-            st.subheader("Quantidade de Médicos por Mês e Ano")
-            if not medicos_por_mes_ano.empty:
-                st.line_chart(medicos_por_mes_ano)
-                st.dataframe(medicos_por_mes_ano.reset_index(name='Total Médicos'), use_container_width=True)
+            # ---- Gráfico de Quantidade de Médicos por Mês e Ano (Cumulativo) ----
+            st.subheader("Quantidade de Médicos por Mês e Ano (Cumulativo)")
+            if not df_cumulativo_chart.empty:
+                st.line_chart(df_cumulativo_chart)
+                st.dataframe(df_cumulativo_chart, use_container_width=True)
             else:
-                st.info("Não há dados de data válidos para gerar o gráfico de médicos por mês e ano. Verifique a coluna 'Início Atividades'.")
+                st.info("Não há dados de data válidos para gerar o gráfico cumulativo de médicos por mês e ano. Verifique a coluna 'Início Atividades'.")
 
 
             # ---- Relatório Detalhado por Região e Município (Formato Corrigido) ----
@@ -159,8 +173,8 @@ if uploaded_file is not None:
             output.write(supervisores_mais_de_2_municipios.to_string())
             output.write("\n\n5. Média de médicos por supervisor:\n")
             output.write(f"{media_medicos_por_supervisor:.2f}\n")
-            output.write("\n\n6. Quantidade de Médicos por Mês e Ano:\n")
-            output.write(medicos_por_mes_ano.to_string())
+            output.write("\n\n6. Quantidade de Médicos por Mês e Ano (Cumulativo):\n")
+            output.write(df_cumulativo_chart.to_string()) # Alterado para incluir o DataFrame completo
             output.write("\n\n7. Relatório Detalhado por Região e Município:\n")
             # Usa to_string para o DataFrame completo, sem o índice
             output.write(relatorio_final_df.to_string(index=False))
