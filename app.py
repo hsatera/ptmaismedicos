@@ -131,6 +131,9 @@ if uploaded_file is not None:
                 # Criar um DataFrame para o Altair que inclui o índice 'Ano_Mes'
                 df_chart_reset = df_cumulativo_chart.reset_index()
 
+                # Criar uma coluna formatada para a dica de ferramenta do percentual
+                df_chart_reset['Percentual Cumulativo Formatado'] = df_chart_reset['Percentual Cumulativo (%)'].apply(lambda x: f"{x:.2f}%")
+
                 # Criar o gráfico de barras para Médicos Cumulativos
                 bar_chart = alt.Chart(df_chart_reset).mark_bar().encode(
                     x=alt.X('Ano_Mes', sort=None, title='Mês/Ano de Início das Atividades'),
@@ -142,7 +145,7 @@ if uploaded_file is not None:
                 line_chart = alt.Chart(df_chart_reset).mark_line(color='red').encode(
                     x=alt.X('Ano_Mes', sort=None), # Compartilha o eixo X
                     y=alt.Y('Percentual Cumulativo (%)', title='Percentual Cumulativo (%)', axis=alt.Axis(titleColor='red')),
-                    tooltip=['Ano_Mes', alt.Tooltip('Percentual Cumulativo (%)', format='.2f') + '%']
+                    tooltip=['Ano_Mes', 'Percentual Cumulativo Formatado'] # Usando a nova coluna formatada
                 )
 
                 # Combinar os gráficos e configurar eixos Y independentes
