@@ -34,14 +34,14 @@ if uploaded_file is not None:
         st.dataframe(df.head(), use_container_width=True)
 
         try:
-            # Seleciona as colunas de interesse, incluindo 'Nome Região'
-            # Assegura que as colunas 'Município', 'Supervisor', 'Tutor' e 'Nome Região' existem
-            required_columns = ['Município', 'Supervisor', 'Tutor', 'Nome Região']
+            # Seleciona as colunas de interesse, incluindo 'Nome Região' e 'Início Atividades'
+            # ALTERADO: A coluna 'Data de Referência' foi substituída por 'Início Atividades'
+            required_columns = ['Município', 'Supervisor', 'Tutor', 'Nome Região', 'Início Atividades']
             if not all(col in df.columns for col in required_columns):
                 missing_cols = [col for col in required_columns if col not in df.columns]
                 raise KeyError(f"Colunas ausentes no arquivo: {', '.join(missing_cols)}. Verifique se o arquivo possui as colunas esperadas.")
 
-            df = df[required_columns]
+            df = df[required_columns].copy() # Usar .copy() para evitar SettingWithCopyWarning
 
             # Aplica a correção de capitalização aos nomes dos tutores e supervisores
             df['Supervisor'] = df['Supervisor'].apply(to_title_case)
@@ -52,6 +52,15 @@ if uploaded_file is not None:
             df['Tutor'] = df['Tutor'].fillna('')
             # Filtra linhas onde 'Supervisor' ou 'Tutor' estão vazios
             df = df[(df['Supervisor'] != '') & (df['Tutor'] != '')]
+
+            # Converte a coluna de data para o tipo datetime, tratando erros
+            # A função pd.to_datetime é robusta para formatar DD/MM/YYYY
+            df['Início Atividades'] = pd.to_datetime(df['Início Atividades'], errors='coerce', dayfirst=True)
+            # Remove linhas onde a conversão de data falhou (NaN)
+            df.dropna(subset=['Início Atividades'], inplace=True)
+
+            # Cria uma coluna 'Ano_Mes' para agrupar os dados por mês e ano
+            df['Ano_Mes'] = df['Início Atividades'].dt.to_period('M').astype(str)
 
             # 1) Número de supervisores únicos por tutor
             # Agrupa por 'Tutor' e conta o número de supervisores únicos para cada um
@@ -82,6 +91,9 @@ if uploaded_file is not None:
             # Evita divisão por zero
             media_medicos_por_supervisor = total_medicos / total_supervisores if total_supervisores > 0 else 0
 
+            # 6) Quantidade de médicos por mês e ano (usando 'Início Atividades')
+            medicos_por_mes_ano = df.groupby('Ano_Mes').size().sort_index()
+
             # ---- Exibir resultados da Análise Geral ----
             st.subheader("Análise Geral")
 
@@ -99,6 +111,15 @@ if uploaded_file is not None:
 
             st.write("### Média de médicos por supervisor:")
             st.write(f"**{media_medicos_por_supervisor:.2f}** médicos por supervisor")
+
+            # ---- Gráfico de Quantidade de Médicos por Mês e Ano ----
+            st.subheader("Quantidade de Médicos por Mês e Ano")
+            if not medicos_por_mes_ano.empty:
+                st.line_chart(medicos_por_mes_ano)
+                st.dataframe(medicos_por_mes_ano.reset_index(name='Total Médicos'), use_container_width=True)
+            else:
+                st.info("Não há dados de data válidos para gerar o gráfico de médicos por mês e ano. Verifique a coluna 'Início Atividades'.")
+
 
             # ---- Relatório Detalhado por Região e Município (Formato Corrigido) ----
             st.subheader("Relatório Detalhado por Região e Município")
@@ -138,7 +159,9 @@ if uploaded_file is not None:
             output.write(supervisores_mais_de_2_municipios.to_string())
             output.write("\n\n5. Média de médicos por supervisor:\n")
             output.write(f"{media_medicos_por_supervisor:.2f}\n")
-            output.write("\n\n6. Relatório Detalhado por Região e Município:\n")
+            output.write("\n\n6. Quantidade de Médicos por Mês e Ano:\n")
+            output.write(medicos_por_mes_ano.to_string())
+            output.write("\n\n7. Relatório Detalhado por Região e Município:\n")
             # Usa to_string para o DataFrame completo, sem o índice
             output.write(relatorio_final_df.to_string(index=False))
 
@@ -150,6 +173,6 @@ if uploaded_file is not None:
             )
 
         except KeyError as ke:
-            st.error(f"Erro: Coluna '{ke}' não encontrada no arquivo. Verifique se o arquivo possui as colunas esperadas: 'Município', 'Supervisor', 'Tutor', 'Nome Região'.")
+            st.error(f"Erro: Coluna '{ke}' não encontrada no arquivo. Verifique se o arquivo possui as colunas esperadas: 'Município', 'Supervisor', 'Tutor', 'Nome Região', 'Início Atividades'.")
         except Exception as e:
             st.error(f"Ocorreu um erro no processamento dos dados: {e}")
