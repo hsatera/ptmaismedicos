@@ -16,7 +16,7 @@ def read_excel_file(uploaded_file):
 st.set_page_config(layout="wide") # Define o layout da página para largura total
 st.title("Análise de Plano de Trabalho")
 
-uploaded_file = st.file_uploader("Carregar arquivo XLS ou XLSX", type=["xls", "xlsx"])
+uploaded_file = st.file_uploader("Carregar arquivo XLS ou XLSX", type=["xlsx"])
 
 if uploaded_file is not None:
     # Ler o arquivo
