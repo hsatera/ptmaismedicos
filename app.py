@@ -37,6 +37,11 @@ if uploaded_file is not None:
 
             df = df[required_columns]
 
+            # Normaliza a capitalização das colunas de texto para Title Case
+            for col in ['Município', 'Supervisor', 'Tutor', 'Nome Região']:
+                if col in df.columns:
+                    df[col] = df[col].astype(str).apply(lambda x: x.title())
+
             # Limpa dados vazios nas colunas 'Supervisor' e 'Tutor'
             df['Supervisor'] = df['Supervisor'].fillna('')
             df['Tutor'] = df['Tutor'].fillna('')
