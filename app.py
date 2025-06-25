@@ -173,8 +173,8 @@ if uploaded_file is not None:
             else:
                 st.info("Não há dados de data válidos para gerar o gráfico cumulativo de médicos por mês e ano. Verifique a coluna 'Início Atividades'.")
 
-            # --- Gráfico de Barras Empilhadas de Médicos por Município com Linha Cumulativa ---
-            st.subheader("Número de Médicos por Município (Maiores para Menores) com Linha Cumulativa")
+            # --- Gráfico de Barras Empilhadas de Médicos por Município com Linha Cumulativa (em %) ---
+            st.subheader("Número de Médicos por Município (Maiores para Menores) com Linha Cumulativa em %")
             
             # Contar médicos por município e ordenar
             medicos_por_municipio = df.groupby('Município').size().sort_values(ascending=False)
@@ -182,14 +182,21 @@ if uploaded_file is not None:
             # Calcular o número cumulativo de médicos
             medicos_cumulativos_municipio = medicos_por_municipio.cumsum()
             
+            # Calcular a porcentagem cumulativa de médicos em relação ao total geral de médicos por município
+            total_medicos_municipios = medicos_cumulativos_municipio.iloc[-1] if not medicos_cumulativos_municipio.empty else 1
+            porcentagem_cumulativa_municipio = (medicos_cumulativos_municipio / total_medicos_municipios) * 100
+
             # Criar um DataFrame para o Altair
             df_municipio_chart = pd.DataFrame({
                 'Município': medicos_por_municipio.index,
                 'Número de Médicos': medicos_por_municipio.values,
-                'Médicos Cumulativos': medicos_cumulativos_municipio.values
+                'Médicos Cumulativos Percentual (%)': porcentagem_cumulativa_municipio.values
             })
 
             if not df_municipio_chart.empty:
+                # Criar uma coluna formatada para a dica de ferramenta do percentual para melhor visualização
+                df_municipio_chart['Médicos Cumulativos Percentual Formatado'] = df_municipio_chart['Médicos Cumulativos Percentual (%)'].apply(lambda x: f"{x:.2f}%")
+
                 # Criar o gráfico de barras
                 bar_chart_municipio = alt.Chart(df_municipio_chart).mark_bar().encode(
                     x=alt.X('Município', sort='-y', title='Município'), # Ordenar pelo número de médicos
@@ -197,18 +204,18 @@ if uploaded_file is not None:
                     tooltip=['Município', 'Número de Médicos']
                 )
 
-                # Criar o gráfico de linha cumulativa
+                # Criar o gráfico de linha cumulativa em percentual
                 line_chart_municipio = alt.Chart(df_municipio_chart).mark_line(color='red').encode(
                     x=alt.X('Município', sort='-y'), # Compartilhar o eixo X
-                    y=alt.Y('Médicos Cumulativos', title='Médicos Cumulativos', axis=alt.Axis(titleColor='red')),
-                    tooltip=['Município', 'Médicos Cumulativos']
+                    y=alt.Y('Médicos Cumulativos Percentual (%)', title='Médicos Cumulativos (%)', axis=alt.Axis(titleColor='red')),
+                    tooltip=['Município', 'Médicos Cumulativos Percentual Formatado'] # Usando a coluna formatada para o tooltip
                 )
 
                 # Combinar os gráficos e configurar eixos Y independentes
                 chart_municipio = alt.layer(bar_chart_municipio, line_chart_municipio).resolve_scale(
                     y='independent'
                 ).properties(
-                    title='Distribuição e Acúmulo de Médicos por Município'
+                    title='Distribuição e Acúmulo Percentual de Médicos por Município'
                 ).interactive()
 
                 st.altair_chart(chart_municipio, use_container_width=True)
