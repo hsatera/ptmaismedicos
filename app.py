@@ -23,9 +23,9 @@ def to_title_case(name):
 
 # --- Interface ---
 st.set_page_config(layout="wide", page_title="Análise Plano de Trabalho")
-st.title("Análise de Plano de Trabalho")
+st.title("📊 Análise de Plano de Trabalho")
 
-uploaded_file = st.file_uploader("Carregar arquivo XLSX", type=["xlsx"])
+uploaded_file = st.file_uploader("Carregar arquivo XLSX (Plano de Trabalho)", type=["xlsx"])
 
 if uploaded_file is not None:
     df = read_excel_file(uploaded_file)
@@ -37,8 +37,8 @@ if uploaded_file is not None:
             
             # Verificação robusta de colunas
             if not all(col in df.columns for col in required_columns):
-                st.error(f"Colunas encontradas: {list(df.columns)}")
-                st.stop() # Interrompe a execução aqui para mostrar o erro
+                st.error(f"Colunas esperadas não encontradas. Colunas lidas: {list(df.columns)}")
+                st.stop() 
 
             # Seleção e Limpeza
             df = df[required_columns].copy()
@@ -51,23 +51,48 @@ if uploaded_file is not None:
             # Conversão de data
             df['Início Atividades'] = pd.to_datetime(df['Início Atividades'], errors='coerce')
             df = df.dropna(subset=['Início Atividades'])
-            df['Ano_Mes'] = df['Início Atividades'].dt.strftime('%Y-%m') # Formato string fixo
+            df['Ano_Mes'] = df['Início Atividades'].dt.strftime('%Y-%m') 
 
-            # --- (Restante da sua lógica de análise permanece igual) ---
-            # ... (Cálculos de médias e agrupamentos) ...
+            # --- Lógica de Análise (Cálculos das Variáveis) ---
+            
+            total_medicos = len(df)
+            total_supervisores = df['Supervisor'].nunique()
+            total_tutores = df['Tutor'].nunique()
+            
+            # Cálculo da média com proteção contra divisão por zero
+            media_medicos = total_medicos / total_supervisores if total_supervisores > 0 else 0
 
-            # DICA: Para o download_button, use encode se der erro de Buffer
-            report_text = "--- Relatório de Análise ---\n\n"
-            report_text += f"Média de Médicos: {total_medicos/total_supervisores:.2f}"
-            # ... adicione o resto ao report_text ...
+            # --- Visualização no Streamlit ---
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Total de Médicos", total_medicos)
+            col2.metric("Total de Supervisores", total_supervisores)
+            col3.metric("Média Médicos/Supervisor", f"{media_medicos:.2f}")
 
+            # --- Construção do Relatório de Texto ---
+            report_text = "--- RELATÓRIO DE ANÁLISE - MAIS MÉDICOS ---\n\n"
+            report_text += f"Data do Processamento: {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}\n"
+            report_text += f"Total de Médicos Analisados: {total_medicos}\n"
+            report_text += f"Total de Supervisores: {total_supervisores}\n"
+            report_text += f"Total de Tutores: {total_tutores}\n"
+            report_text += f"Média de Médicos por Supervisor: {media_medicos:.2f}\n"
+            report_text += "\n--- Distribuição por Região ---\n"
+            
+            # Adicionando contagem por região ao relatório
+            regiao_counts = df['Nome Região'].value_counts()
+            for regiao, count in regiao_counts.items():
+                report_text += f"{regiao}: {count} médicos\n"
+
+            st.write("### Resumo por Região")
+            st.dataframe(regiao_counts)
+
+            # Botão de Download
             st.download_button(
-                label="Baixar relatório completo",
+                label="📥 Baixar relatório completo (.txt)",
                 data=report_text,
-                file_name="relatorio.txt",
+                file_name=f"relatorio_plano_trabalho.txt",
                 mime="text/plain"
             )
 
         except Exception as e:
-            st.error(f"Erro no processamento: {e}")
-            st.exception(e) # Isso mostra o traceback completo para você debugar
+            st.error(f"Erro no processamento dos dados: {e}")
+            st.exception(e)
